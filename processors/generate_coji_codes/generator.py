@@ -75,11 +75,18 @@ def generate_visual_code(code_id: str):
     x, y = style_info['template']['template-offset'][0] / 2, style_info['template']['template-offset'][1] / 2
     x, y = int(x), int(y)
     objects.append(
-        ['coji', [
+        ['coji-code', [
             [x, y],
             [x, y + style_info['size']],
             [x + style_info['size'], y + style_info['size']],
             [x + style_info['size'], y],
+        ]])
+    objects.append(
+        ['coji-frame', [
+            [0, 0],
+            [0, coji_code.size[1]],
+            [coji_code.size[0], coji_code.size[1]],
+            [coji_code.size[0], 0],
         ]])
     # with io.BytesIO() as out:
     #     coji_code.save(out, format='JPEG', quality=100, optimize=True)
