@@ -5,16 +5,17 @@
 # change contrast / brightness, blur
 # label (object, x, y, w, h)
 # save
-import cv2
-import math
-import numpy as np
-import imutils
+import os
 import random
+import math
+import cv2
+import numpy as np
 import torch
 import torchvision.transforms as T
 from PIL import Image
-from processors.generate_coji_codes import generator as coji_gen
+import multiprocessing
 from processors.background_images import generator as background_gen
+from processors.generate_coji_codes import generator as coji_gen
 
 BACKGROUNDS_PATH = 'data/out/background_images/Taipei'
 torch.manual_seed(0)
@@ -44,33 +45,26 @@ def rotate_img(image, angle):
     return cv2.warpAffine(image, M, (nW, nH))
 
 
-def get_angle(a, b, c):
-    ang = math.degrees(math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(a[1] - b[1], a[0] - b[0]))
-    return ang + 360 if ang < 0 else ang
-
-
-def label_img(code_labels, coji_new_point, coji_pos_x, coji_pos_y, img):
+def label_img(code_labels, matrix, coji_pos_y, coji_pos_x, final_img):
+    """"""
     code_labels_out = []
-    coji_old_point = code_labels[-1][1]
+    img = final_img.copy()
     for label in code_labels:
         points = label[1]
         points_n = []
-        for i, point in enumerate(points):
-            # points_n.append((x, y))
-            print(f'Point old: {point}')
-            print(f'Coji point old: {coji_old_point[i]}')
-            print(f'Coji point new: {coji_new_point[i][0]}')
-            print(f'Angel: {get_angle(point, coji_old_point[i], coji_new_point[i][0])}')
-            print('------')
-        print('!!!!!!!!!!!!!!')
-        # cv2.rectangle(img, points_n[0], points_n[-1], (254, 254, 254), 3)
-        cv2.imshow('i', img)
-        cv2.waitKey(0)
-
-    print(code_labels, coji_new_point, coji_pos_x, coji_pos_y)
+        for i, p in enumerate(points):
+            px = (matrix[0][0] * p[0] + matrix[0][1] * p[1] + matrix[0][2]) / (
+                (matrix[2][0] * p[0] + matrix[2][1] * p[1] + matrix[2][2]))
+            py = (matrix[1][0] * p[0] + matrix[1][1] * p[1] + matrix[1][2]) / (
+                (matrix[2][0] * p[0] + matrix[2][1] * p[1] + matrix[2][2]))
+            points_n.append((int(px) + coji_pos_x, int(py) + coji_pos_y))
+            img = cv2.circle(img, points_n[-1], radius=1, color=(0, 0, 255), thickness=4)
+        code_labels_out.append([label[0], points_n])
+    return code_labels_out, img
 
 
 def resize_original_labels(coji_new_size_w, coji_new_size_h, coji_size_h, coji_size_w, code_labels):
+    """Resize labels based on new coji code size"""
     code_labels_out = []
     for label in code_labels:
         points = label[1]
@@ -85,10 +79,13 @@ def resize_original_labels(coji_new_size_w, coji_new_size_h, coji_size_h, coji_s
     return code_labels_out
 
 
-def generate_labeled_img():
+def generate_labeled_img(i):
+    global out_path
+    # get random coji code
     code_img, code_labels, code_id = coji_gen.generate_random_code()
-    cv2.imwrite('code_img_full.png', code_img)
+    code_img = cv2.cvtColor(code_img, cv2.COLOR_RGB2RGBA)
 
+    # get random background image
     background_img = background_gen.get_random_background_image(BACKGROUNDS_PATH)
     background_img_h, background_img_w = background_img.shape[:2]
 
@@ -104,29 +101,22 @@ def generate_labeled_img():
     coji_new_size_h, coji_new_size_w = int(img_size * coji_size_prcntg), int(
         img_size * coji_size_prcntg * (code_img.shape[1] / code_img.shape[0]))
     coji_modified = cv2.resize(code_img, (coji_new_size_w, coji_new_size_h), interpolation=cv2.INTER_AREA)
-    cv2.imwrite('code_img.png', coji_modified)
+    # cv2.imwrite('code_img.png', coji_modified)
 
+    # adjust labels for new size
     code_labels = resize_original_labels(coji_new_size_w, coji_new_size_h, *code_img.shape[:2], code_labels)
     # change perspective
     color_converted = cv2.cvtColor(coji_modified, cv2.COLOR_BGRA2RGBA)
     coji_pil = Image.fromarray(color_converted)
+    # get random transform
+    pts1, pts2 = perspective_transformer.get_params(*coji_pil.size, 0.5)
+    pts1, pts2 = np.float32(pts1), np.float32(pts2)
+    matrix = cv2.getPerspectiveTransform(pts1, pts2)
+    # transform
+    coji_modified = cv2.warpPerspective(coji_modified, matrix, coji_pil.size)
+    coji_modified = cv2.cvtColor(coji_modified, cv2.COLOR_RGB2RGBA)
 
-    perspective_img = perspective_transformer(coji_pil)
-    print(perspective_transformer.get_params(*coji_pil.size, 0.5))
-    print(perspective_transformer.get_params(*coji_pil.size, 0.5))
-    print(perspective_transformer.get_params(*coji_pil.size, 0.5))
-    coji_modified = cv2.cvtColor(np.array(perspective_img), cv2.COLOR_BGRA2RGBA)
-    contours, hierarchy = cv2.findContours(cv2.cvtColor(np.array(coji_modified), cv2.COLOR_RGB2GRAY),
-                                           cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    contours = max(contours, key=lambda x: cv2.contourArea(x))
-    coji_new_xy = cv2.approxPolyDP(contours, 0.0035 * cv2.arcLength(contours, True), True)
-    #
-    # for point in coji_new_xy:
-    #     x, y = point[0]
-    #     cv2.circle(coji_modified, (x, y), 2, (255, 0, 0), 2)
-    cv2.imwrite('coji_modified.png', coji_modified)
-
-    # place randomly
+    # paste coji code into a random place in an image
     coji_modified_h, coji_modified_w = coji_modified.shape[:2]
     coji_pos_x = random.randint(0, background_img_w - coji_modified_w)
     coji_pos_y = random.randint(0, background_img_h - coji_modified_h)
@@ -149,16 +139,33 @@ def generate_labeled_img():
     jitted_img = blurrer(jitted_img)
 
     background_img = cv2.cvtColor(np.array(jitted_img), cv2.COLOR_RGBA2BGRA)
-    label_img(code_labels, coji_new_xy, coji_pos_x, coji_pos_y, coji_modified)
-    print(code_id)
-    cv2.imshow('image', coji_modified)
-    cv2.imshow('image2', background_img)
-    cv2.waitKey(0)
+    code_labels, labeled_img = label_img(code_labels, matrix, coji_pos_y, coji_pos_x, background_img)
+    with open(os.path.join(out_path, 'clean', f'{code_id}.txt'), 'w+') as out:
+        for label in code_labels:
+            name, points = label
+            xs, ys = [p[0] for p in points], [p[1] for p in points]
+            max_x, max_y = max(xs), max(ys)
+            min_x, min_y = min(xs), min(ys)
+            w = math.hypot(max_x - min_x, min_y - min_y)
+            h = math.hypot(min_x - min_x, max_y - min_y)
+            center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
+            out.write(f'{name} {int(w)} {int(h)} {int(center[0])} {int(center[1])}\n')
+
+    cv2.imwrite(os.path.join(out_path, 'clean', f'{code_id}.jpg'), background_img)
+    cv2.imwrite(os.path.join(out_path, 'labeled', f'{code_id}.jpg'), labeled_img)
+    print(code_id, i)
+    # cv2.imshow('image', coji_modified)
+    # cv2.imshow('image2', background_img)
+    # cv2.waitKey(0)
     # label
     # save
 
 
+out_path = 'data/out/generate_coji_codes/Taipei'
+
 if __name__ == '__main__':
+    from multiprocessing.pool import ThreadPool
+
     print('loading finished...')
-while True:
-    generate_labeled_img()
+    pool = ThreadPool()
+    res = pool.map(generate_labeled_img, range(50000))  # 50000

@@ -72,8 +72,7 @@ def generate_visual_code(code_id: str):
         )
         template.paste(coji_code, style_info['template']['template-offset'])
         coji_code = template
-    x, y = style_info['template']['template-offset'][0] / 2, style_info['template']['template-offset'][1] / 2
-    x, y = int(x), int(y)
+    x, y = style_info['template']['template-offset']
     objects.append(
         ['coji-code', [
             [x, y],
