@@ -8,9 +8,11 @@
 import os
 import random
 import math
+from runpy import run_path
 import cv2
 import numpy as np
 import torch
+from pathlib import Path
 import torchvision.transforms as T
 from PIL import Image
 import multiprocessing
@@ -22,6 +24,13 @@ torch.manual_seed(0)
 jitter = T.ColorJitter(brightness=.6, contrast=.5, saturation=.25, hue=.05)
 blurrer = T.GaussianBlur(kernel_size=(13, 17), sigma=(0.1, 2))
 perspective_transformer = T.RandomPerspective(distortion_scale=0.6, p=1.0)
+
+STYLE_NAME = 'geom-original'
+STYLES_PATH_SHORT = 'statics/styles/{}/'
+STYLES_PATH_FULL = STYLES_PATH_SHORT.format(STYLE_NAME)
+style_module = run_path(os.path.join(STYLES_PATH_FULL, 'properties.py'))['style_module']
+style_info = style_module['style-info']
+name_to_key = style_module['object-detection-model']['name-to-key']
 
 
 def rotate_img(image, angle):
@@ -82,7 +91,7 @@ def resize_original_labels(coji_new_size_w, coji_new_size_h, coji_size_h, coji_s
 def generate_labeled_img(i):
     global out_path
     # get random coji code
-    code_img, code_labels, code_id = coji_gen.generate_random_code()
+    code_img, code_labels, code_id = coji_gen.generate_random_code(style_module)
     code_img = cv2.cvtColor(code_img, cv2.COLOR_RGB2RGBA)
 
     # get random background image
@@ -149,11 +158,11 @@ def generate_labeled_img(i):
             w = math.hypot(max_x - min_x, min_y - min_y)
             h = math.hypot(min_x - min_x, max_y - min_y)
             center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
-            out.write(f'{name} {int(w)} {int(h)} {int(center[0])} {int(center[1])}\n')
+            out.write(
+                f'{name_to_key[name]} {(center[0] / background_img_w)} {(center[1] / background_img_h)} {(w / background_img_w)} {(h / background_img_h)}\n')
 
     cv2.imwrite(os.path.join(out_path, 'clean', f'{code_id}.jpg'), background_img)
     cv2.imwrite(os.path.join(out_path, 'labeled', f'{code_id}.jpg'), labeled_img)
-    print(code_id, i)
     # cv2.imshow('image', coji_modified)
     # cv2.imshow('image2', background_img)
     # cv2.waitKey(0)
@@ -166,6 +175,11 @@ out_path = 'data/out/generate_coji_codes/Taipei'
 if __name__ == '__main__':
     from multiprocessing.pool import ThreadPool
 
+    Path(os.path.join(out_path, 'clean')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(out_path, 'labeled')).mkdir(parents=True, exist_ok=True)
+
     print('loading finished...')
-    pool = ThreadPool()
+    pool = ThreadPool(processes=32)
     res = pool.map(generate_labeled_img, range(50000))  # 50000
+    with open(os.path.join(out_path, 'clean', 'classes.txt'), 'w+') as out:
+        [out.write(f'{k}\n') for k in name_to_key.keys()]

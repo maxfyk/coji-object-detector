@@ -8,17 +8,13 @@ import cv2
 
 STYLE_NAME = 'geom-original'
 STYLES_PATH_SHORT = 'statics/styles/{}/'
-STYLES_PATH_FULL = os.path.join(os.path.dirname(os.path.abspath(__file__)), STYLES_PATH_SHORT)
-STYLES_PATH_FULL = STYLES_PATH_FULL.format(STYLE_NAME)
+STYLES_PATH_FULL = STYLES_PATH_SHORT.format(STYLE_NAME)
 
 p = 6364136223846793005
 s = 1442695040888963407
 
-style_module = run_path(os.path.join(STYLES_PATH_FULL, 'properties.py'))['style_module']
-style_info = style_module['style-info']
 
-
-def generate_code_id(index: int):
+def generate_code_id(index: int, style_info: dict, style_module: dict):
     """Generate random code id"""
     n, m = style_info['rows'], style_info['pieces-row']  # dimension of key - n*n
     num_keys = (2 ** m) ** (n * n)  # total number of keys
@@ -35,10 +31,10 @@ def pieces_generator(code_id: str):
         yield char
 
 
-def generate_visual_code(code_id: str):
+def generate_visual_code(code_id: str, style_module: dict):
     """Visualize string code"""
     style_info = style_module['style-info']
-    key_to_name = style_module['key_to_name']
+    key_to_name = style_module['key-to-name']
 
     coji_code = Image.new('RGB', (style_info['size'], style_info['size']), tuple(style_info['background-color']))
     piece_size = int(style_info['size'] / style_info['pieces-row'])
@@ -93,11 +89,14 @@ def generate_visual_code(code_id: str):
     return cv2.cvtColor(np.array(coji_code), cv2.COLOR_RGB2BGR), objects, code_id
 
 
-def generate_random_code():
+def generate_random_code(style_module):
+    style_info = style_module['style-info']
     index = randrange(0, 18446744073709551616)
-    code_id = generate_code_id(index)
-    return generate_visual_code(code_id)
+    code_id = generate_code_id(index, style_info, style_module)
+    return generate_visual_code(code_id, style_module)
 
 
 if __name__ == '__main__':
-    print(generate_random_code())
+    STYLES_PATH_SHORT = '../../statics/styles/{}/'
+    style_module = run_path(os.path.join(STYLES_PATH_FULL, 'properties.py'))['style_module']
+    print(generate_random_code(style_module))
