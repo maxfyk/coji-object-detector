@@ -1,0 +1,7 @@
+runpy
+torch
+opencv-python
+numpy
+pathlib
+torchvision
+Pillow

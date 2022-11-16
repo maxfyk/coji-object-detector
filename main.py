@@ -23,7 +23,7 @@ BACKGROUNDS_PATH = 'data/out/background_images/Taipei'
 torch.manual_seed(0)
 jitter = T.ColorJitter(brightness=.6, contrast=.5, saturation=.25, hue=.05)
 blurrer = T.GaussianBlur(kernel_size=(13, 17), sigma=(0.1, 2))
-perspective_transformer = T.RandomPerspective(distortion_scale=0.6, p=1.0)
+perspective_transformer = T.RandomPerspective(distortion_scale=0.7, p=0.8)
 
 STYLE_NAME = 'geom-original'
 STYLES_PATH_SHORT = 'statics/styles/{}/'
@@ -98,14 +98,14 @@ def generate_labeled_img(i):
     background_img = background_gen.get_random_background_image(BACKGROUNDS_PATH)
     background_img_h, background_img_w = background_img.shape[:2]
 
-    background_img = cv2.resize(background_img, (int(background_img_w / 6), int(background_img_h / 6)),
+    background_img = cv2.resize(background_img, (int(background_img_w / 3), int(background_img_h / 3)),
                                 interpolation=cv2.INTER_AREA)
     background_img_h, background_img_w = background_img.shape[:2]
 
     # get min background_img side
     background_img = cv2.cvtColor(background_img, cv2.COLOR_RGB2RGBA)
     img_size = min(background_img.shape[:2])
-    coji_size_prcntg = random.uniform(0.26, 0.88)
+    coji_size_prcntg = random.uniform(0.28, 0.88)
     # make coji N - N +100 % of it
     coji_new_size_h, coji_new_size_w = int(img_size * coji_size_prcntg), int(
         img_size * coji_size_prcntg * (code_img.shape[1] / code_img.shape[0]))
@@ -148,8 +148,16 @@ def generate_labeled_img(i):
     jitted_img = blurrer(jitted_img)
 
     background_img = cv2.cvtColor(np.array(jitted_img), cv2.COLOR_RGBA2BGRA)
-    code_labels, labeled_img = label_img(code_labels, matrix, coji_pos_y, coji_pos_x, background_img)
-    with open(os.path.join(out_path, 'clean', f'{code_id}.txt'), 'w+') as out:
+    code_labels, _ = label_img(code_labels, matrix, coji_pos_y, coji_pos_x, background_img)
+
+    category = 'train'
+    rand_cat = random.randint(1, 10)
+    if rand_cat in (8, 9):
+        category = 'test'
+    elif rand_cat == 10:
+        category = 'validate'
+
+    with open(os.path.join(out_path, category, f'{code_id}.txt'), 'w+') as out:
         for label in code_labels:
             name, points = label
             xs, ys = [p[0] for p in points], [p[1] for p in points]
@@ -161,8 +169,7 @@ def generate_labeled_img(i):
             out.write(
                 f'{name_to_key[name]} {(center[0] / background_img_w)} {(center[1] / background_img_h)} {(w / background_img_w)} {(h / background_img_h)}\n')
 
-    cv2.imwrite(os.path.join(out_path, 'clean', f'{code_id}.jpg'), background_img)
-    cv2.imwrite(os.path.join(out_path, 'labeled', f'{code_id}.jpg'), labeled_img)
+    cv2.imwrite(os.path.join(out_path, category, f'{code_id}.jpg'), background_img)
     # cv2.imshow('image', coji_modified)
     # cv2.imshow('image2', background_img)
     # cv2.waitKey(0)
@@ -170,16 +177,18 @@ def generate_labeled_img(i):
     # save
 
 
-out_path = 'data/out/generate_coji_codes/Taipei'
+out_path = 'data/out/generate_coji_codes/'
 
 if __name__ == '__main__':
     from multiprocessing.pool import ThreadPool
 
-    Path(os.path.join(out_path, 'clean')).mkdir(parents=True, exist_ok=True)
-    Path(os.path.join(out_path, 'labeled')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(out_path)).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(out_path, 'train')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(out_path, 'test')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(out_path, 'validate')).mkdir(parents=True, exist_ok=True)
 
     print('loading finished...')
-    pool = ThreadPool(processes=32)
-    res = pool.map(generate_labeled_img, range(50000))  # 50000
-    with open(os.path.join(out_path, 'clean', 'classes.txt'), 'w+') as out:
+    pool = ThreadPool()
+    res = pool.map(generate_labeled_img, range(100))  # 50000
+    with open(os.path.join(out_path, 'classes.txt'), 'w+') as out:
         [out.write(f'{k}\n') for k in name_to_key.keys()]

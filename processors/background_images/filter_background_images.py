@@ -1,6 +1,6 @@
 import os
 import shutil
-from PIL import Image, ExifTags
+from PIL import Image
 
 
 def filter_background_images(in_folder_path: str, out_folder_path: str):
