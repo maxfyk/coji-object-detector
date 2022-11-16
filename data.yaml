@@ -1,6 +1,6 @@
-train: "out/generate_coji_codes/train"
-val: "out/generate_coji_codes/validate"
-test: "out/generate_coji_codes/test"
+train: "data/out/generate_coji_codes/train"
+val: "data/out/generate_coji_codes/validate"
+test: "data/out/generate_coji_codes/test"
 
 # number of classes
 nc: 18
