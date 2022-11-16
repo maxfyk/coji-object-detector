@@ -1,0 +1,15 @@
+train: "out/generate_coji_codes/train"
+val: "out/generate_coji_codes/validate"
+test: "out/generate_coji_codes/test"
+
+# number of classes
+nc: 18
+
+# class names
+names: [ 'circle', 'd-arrow', 'e-circle', 'e-rhombus', 'e-square', 'e-triangle', 'l-arrow', 'minus',
+         'plus', 'r-arrow', 'rhombus', 'square', 'triangle', 'u-arrow', 'v-bar', 'x', 'coji-code', 'coji-frame' ]
+
+#python train.py --weights yolov7.pt --data "C:\Users\maxfyk\Documents\coji\coji-object-detector\data\out\generate_coji_codes\Taipei\data.yaml" --workers 4 --batch-size 4 --cfg cfg/training/yolov7.yaml --name yolov7 --hyp data/hyp.scratch.p5.yaml
+#python detect.py --weights runs\train\yolov711\weights\best.pt --source "C:\Users\maxfyk\Documents\coji\coji-object-detector\yolov7\yolov7\tests\photo_2022-11-13_19-38-54.jpg"
+#python export.py --weights "C:\Users\maxfyk\Desktop\best.pt" --grid --end2end --simplify --topk-all 100 --iou-thres 0.65 --conf-thres 0.4 --img-size 640 640 --max-wh 640
+#
