@@ -145,7 +145,7 @@ def generate_labeled_img(i):
         w = math.hypot(max_x - min_x, min_y - min_y)
         h = math.hypot(min_x - min_x, max_y - min_y)
         center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
-        img_path = os.path.join('images', f'{code_id}.jpg')
+        img_path = os.path.join('/content', 'images', f'{code_id}.jpg')
         out.write(
             # f'{category},{img_path},{name},{(min_x / background_img_w)},{(min_y / background_img_h)},,,{(max_x / background_img_w)},{(max_y / background_img_h)},,\n')
             f'{category},{img_path},{name},{(xs[0] / background_img_w)},{(ys[0] / background_img_w)},,,{(xs[2] / background_img_w)},{(ys[2] / background_img_w)},,\n')
