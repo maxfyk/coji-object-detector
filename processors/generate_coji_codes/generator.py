@@ -50,8 +50,8 @@ def generate_visual_code(code_id: str, style_module: dict):
             )
             piece = piece.resize((piece_size, piece_size), Image.Resampling.LANCZOS)
             coji_code.paste(piece, (piece_size * cur_col, piece_size * cur_row), piece)
-            y = piece_size * cur_col + style_info['template']['template-offset'][0]
-            x = piece_size * cur_row + style_info['template']['template-offset'][1]
+            x = piece_size * cur_col + style_info['template']['template-offset'][0]
+            y = piece_size * cur_row + style_info['template']['template-offset'][1]
             objects.append(
                 [piece_name, [
                     [x, y],

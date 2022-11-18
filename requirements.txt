@@ -1,4 +1,3 @@
-runpy
 torch
 opencv-python
 numpy

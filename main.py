@@ -33,31 +33,10 @@ style_info = style_module['style-info']
 name_to_key = style_module['object-detection-model']['name-to-key']
 
 
-def rotate_img(image, angle):
-    # grab the dimensions of the image and then determine the
-    # center
-    (h, w) = image.shape[:2]
-    (cX, cY) = (w // 2, h // 2)
-    # grab the rotation matrix (applying the negative of the
-    # angle to rotate clockwise), then grab the sine and cosine
-    # (i.e., the rotation components of the matrix)
-    M = cv2.getRotationMatrix2D((cX, cY), -angle, 1.0)
-    cos = np.abs(M[0, 0])
-    sin = np.abs(M[0, 1])
-    # compute the new bounding dimensions of the image
-    nW = int((h * sin) + (w * cos))
-    nH = int((h * cos) + (w * sin))
-    # adjust the rotation matrix to take into account translation
-    M[0, 2] += (nW / 2) - cX
-    M[1, 2] += (nH / 2) - cY
-    # perform the actual rotation and return the image
-    return cv2.warpAffine(image, M, (nW, nH))
-
-
-def label_img(code_labels, matrix, coji_pos_y, coji_pos_x, final_img):
+def label_img(code_labels, matrix, coji_pos_y, coji_pos_x, back_img_w, back_img_h):
     """"""
+    img_center = (back_img_w / 2), (back_img_h / 2)
     code_labels_out = []
-    img = final_img.copy()
     for label in code_labels:
         points = label[1]
         points_n = []
@@ -66,10 +45,10 @@ def label_img(code_labels, matrix, coji_pos_y, coji_pos_x, final_img):
                 (matrix[2][0] * p[0] + matrix[2][1] * p[1] + matrix[2][2]))
             py = (matrix[1][0] * p[0] + matrix[1][1] * p[1] + matrix[1][2]) / (
                 (matrix[2][0] * p[0] + matrix[2][1] * p[1] + matrix[2][2]))
-            points_n.append((int(px) + coji_pos_x, int(py) + coji_pos_y))
-            img = cv2.circle(img, points_n[-1], radius=1, color=(0, 0, 255), thickness=4)
+            px, py = float(px) + coji_pos_x, float(py) + coji_pos_y
+            points_n.append((px, py))
         code_labels_out.append([label[0], points_n])
-    return code_labels_out, img
+    return code_labels_out
 
 
 def resize_original_labels(coji_new_size_w, coji_new_size_h, coji_size_h, coji_size_w, code_labels):
@@ -80,7 +59,7 @@ def resize_original_labels(coji_new_size_w, coji_new_size_h, coji_size_h, coji_s
         points_n = []
         for i, point in enumerate(points):
             points_n.append(
-                [round((point[0] * coji_new_size_w) / coji_size_w), round((point[1] * coji_new_size_h) / coji_size_h)]
+                [float((point[0] * coji_new_size_w) / coji_size_w), float((point[1] * coji_new_size_h) / coji_size_h)]
             )
         code_labels_out.append([
             label[0], points_n
@@ -105,7 +84,7 @@ def generate_labeled_img(i):
     # get min background_img side
     background_img = cv2.cvtColor(background_img, cv2.COLOR_RGB2RGBA)
     img_size = min(background_img.shape[:2])
-    coji_size_prcntg = random.uniform(0.28, 0.88)
+    coji_size_prcntg = random.uniform(0.16, 0.88)
     # make coji N - N +100 % of it
     coji_new_size_h, coji_new_size_w = int(img_size * coji_size_prcntg), int(
         img_size * coji_size_prcntg * (code_img.shape[1] / code_img.shape[0]))
@@ -113,12 +92,14 @@ def generate_labeled_img(i):
     # cv2.imwrite('code_img.png', coji_modified)
 
     # adjust labels for new size
+
     code_labels = resize_original_labels(coji_new_size_w, coji_new_size_h, *code_img.shape[:2], code_labels)
+
     # change perspective
     color_converted = cv2.cvtColor(coji_modified, cv2.COLOR_BGRA2RGBA)
     coji_pil = Image.fromarray(color_converted)
     # get random transform
-    pts1, pts2 = perspective_transformer.get_params(*coji_pil.size, 0.5)
+    pts1, pts2 = perspective_transformer.get_params(*coji_pil.size, 0.8)
     pts1, pts2 = np.float32(pts1), np.float32(pts2)
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
     # transform
@@ -135,7 +116,6 @@ def generate_labeled_img(i):
 
     for c in range(0, 3):
         background_img[coji_pos_y:coji_pos_y + coji_modified_h, coji_pos_x:coji_pos_x + coji_modified_w, c] = (
-
                 alpha_s * coji_modified[:, :, c] +
                 alpha_l * background_img[coji_pos_y:coji_pos_y + coji_modified_h,
                           coji_pos_x:coji_pos_x + coji_modified_w, c])
@@ -146,9 +126,8 @@ def generate_labeled_img(i):
 
     jitted_img = jitter(background_img_pil)
     jitted_img = blurrer(jitted_img)
-
     background_img = cv2.cvtColor(np.array(jitted_img), cv2.COLOR_RGBA2BGRA)
-    code_labels, _ = label_img(code_labels, matrix, coji_pos_y, coji_pos_x, background_img)
+    code_labels = label_img(code_labels, matrix, coji_pos_y, coji_pos_x, background_img_w, background_img_h)
 
     category = 'train'
     rand_cat = random.randint(1, 10)
@@ -156,7 +135,6 @@ def generate_labeled_img(i):
         category = 'test'
     elif rand_cat == 10:
         category = 'validate'
-
     with open(os.path.join(out_path, category, f'{code_id}.txt'), 'w+') as out:
         for label in code_labels:
             name, points = label
@@ -189,6 +167,6 @@ if __name__ == '__main__':
 
     print('loading finished...')
     pool = ThreadPool()
-    res = pool.map(generate_labeled_img, range(100))  # 50000
+    res = pool.map(generate_labeled_img, range(10))  # 50000
     with open(os.path.join(out_path, 'classes.txt'), 'w+') as out:
         [out.write(f'{k}\n') for k in name_to_key.keys()]

@@ -3,3 +3,4 @@ https://medium.com/augmented-startups/yolov7-training-on-custom-data-b86d23e6623
 https://github.com/WongKinYiu/yolov7
 https://medium.com/geekculture/journey-putting-yolo-v7-model-into-tensorflow-lite-object-detection-api-model-running-on-android-e3f746a02fc4
 https://github.com/facebookresearch/detectron2/tree/main/tools/deploy
+https://stackoverflow.com/questions/74372636/indices-should-be-either-on-cpu-or-on-the-same-device-as-the-indexed-tensor
