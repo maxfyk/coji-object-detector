@@ -16,7 +16,6 @@ from pathlib import Path
 import torchvision.transforms as T
 from PIL import Image
 import multiprocessing
-from tflite_model_maker import object_detector
 from processors.background_images import generator as background_gen
 from processors.generate_coji_codes import generator as coji_gen
 
@@ -69,7 +68,7 @@ def resize_original_labels(coji_new_size_w, coji_new_size_h, coji_size_h, coji_s
 
 
 def generate_labeled_img(i):
-    global out_path
+    global out_path, out
     # get random coji code
     code_img, code_labels, code_id = coji_gen.generate_random_code(style_module)
     code_img = cv2.cvtColor(code_img, cv2.COLOR_RGB2RGBA)
@@ -130,25 +129,28 @@ def generate_labeled_img(i):
     background_img = cv2.cvtColor(np.array(jitted_img), cv2.COLOR_RGBA2BGRA)
     code_labels = label_img(code_labels, matrix, coji_pos_y, coji_pos_x, background_img_w, background_img_h)
 
-    category = 'train'
+    category = 'TRAIN'
     rand_cat = random.randint(1, 10)
     if rand_cat in (8, 9):
-        category = 'test'
+        category = 'TEST'
     elif rand_cat == 10:
-        category = 'validate'
-    with open(os.path.join(out_path, category, f'{code_id}.txt'), 'w+') as out:
-        for label in code_labels:
-            name, points = label
-            xs, ys = [p[0] for p in points], [p[1] for p in points]
-            max_x, max_y = max(xs), max(ys)
-            min_x, min_y = min(xs), min(ys)
-            w = math.hypot(max_x - min_x, min_y - min_y)
-            h = math.hypot(min_x - min_x, max_y - min_y)
-            center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
-            out.write(
-                f'{name_to_key[name]} {(center[0] / background_img_w)} {(center[1] / background_img_h)} {(w / background_img_w)} {(h / background_img_h)}\n')
+        category = 'VALIDATION'
+    for label in code_labels:
+        name, points = label
+        if name != 'coji-code':
+            continue
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        max_x, max_y = max(xs), max(ys)
+        min_x, min_y = min(xs), min(ys)
+        w = math.hypot(max_x - min_x, min_y - min_y)
+        h = math.hypot(min_x - min_x, max_y - min_y)
+        center = ((min_x + max_x) / 2, (min_y + max_y) / 2)
+        img_path = os.path.join('images', f'{code_id}.jpg')
+        out.write(
+            # f'{category},{img_path},{name},{(min_x / background_img_w)},{(min_y / background_img_h)},,,{(max_x / background_img_w)},{(max_y / background_img_h)},,\n')
+            f'{category},{img_path},{name},{(xs[0] / background_img_w)},{(ys[0] / background_img_w)},,,{(xs[2] / background_img_w)},{(ys[2] / background_img_w)},,\n')
 
-    cv2.imwrite(os.path.join(out_path, category, f'{code_id}.jpg'), background_img)
+    cv2.imwrite(os.path.join(out_path, 'images', f'{code_id}.jpg'), background_img)
     # cv2.imshow('image', coji_modified)
     # cv2.imshow('image2', background_img)
     # cv2.waitKey(0)
@@ -156,18 +158,17 @@ def generate_labeled_img(i):
     # save
 
 
-out_path = 'data/out/generate_coji_codes/'
-
 if __name__ == '__main__':
     from multiprocessing.pool import ThreadPool
 
+    out_path = 'data/out/generate_coji_codes/'
     Path(os.path.join(out_path)).mkdir(parents=True, exist_ok=True)
-    Path(os.path.join(out_path, 'train')).mkdir(parents=True, exist_ok=True)
-    Path(os.path.join(out_path, 'test')).mkdir(parents=True, exist_ok=True)
-    Path(os.path.join(out_path, 'validate')).mkdir(parents=True, exist_ok=True)
+    Path(os.path.join(out_path, 'images')).mkdir(parents=True, exist_ok=True)
+    out = open(os.path.join(out_path, f'dataset.csv'), 'w+')
 
     print('loading finished...')
     pool = ThreadPool()
-    res = pool.map(generate_labeled_img, range(10))  # 50000
-    with open(os.path.join(out_path, 'classes.txt'), 'w+') as out:
-        [out.write(f'{k}\n') for k in name_to_key.keys()]
+    for i in range(10):
+        print('started', i)
+        res = pool.map(generate_labeled_img, range(500))  # 50000
+    out.close()
